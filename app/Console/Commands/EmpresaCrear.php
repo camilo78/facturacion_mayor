@@ -7,6 +7,9 @@ use App\Models\User;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use App\Models\Establecimiento;
+use App\Models\PuntoEmision;
+use App\Models\Impuesto;
 
 class EmpresaCrear extends Command
 {
@@ -42,11 +45,37 @@ class EmpresaCrear extends Command
 
         // Sembrar el usuario admin DENTRO de la base de la empresa
         $tenant->run(function () use ($email, $password) {
+            // Usuario administrador
             User::create([
                 'name'     => 'Administrador',
                 'email'    => $email,
                 'password' => Hash::make($password),
             ]);
+
+            // Casa matriz (establecimiento 000 por defecto, editable)
+            $matriz = Establecimiento::create([
+                'codigo' => '000',
+                'nombre' => 'Casa Matriz',
+                'activo' => true,
+            ]);
+
+            // Caja inicial de la casa matriz (emisor por defecto: Mayor)
+            PuntoEmision::create([
+                'establecimiento_id' => $matriz->id,
+                'codigo'             => '001',
+                'nombre'             => 'Caja 1',
+                'emisor_tipo'        => 'mayor',
+                'activo'             => true,
+            ]);
+
+            // Impuestos por defecto (tasas editables)
+            foreach ([
+                ['codigo' => 'EXENTO', 'nombre' => 'Exento', 'tasa' => 0.00,  'es_default' => false],
+                ['codigo' => 'ISV15',  'nombre' => 'ISV 15%', 'tasa' => 15.00, 'es_default' => true],
+                ['codigo' => 'ISV18',  'nombre' => 'ISV 18%', 'tasa' => 18.00, 'es_default' => false],
+            ] as $imp) {
+                Impuesto::create($imp);
+            }
         });
 
         $this->newLine();
