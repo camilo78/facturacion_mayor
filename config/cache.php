@@ -41,9 +41,12 @@ return [
 
         'database' => [
             'driver' => 'database',
-            'connection' => env('DB_CACHE_CONNECTION'),
+            // Anclar siempre a la conexión central (DB_CONNECTION = mariadb).
+            // Sin esto, cuando tenancy cambia la conexión por defecto a 'tenant',
+            // el caché busca la tabla `cache` en la BD del tenant (que no existe).
+            'connection' => env('DB_CACHE_CONNECTION', env('DB_CONNECTION', 'mariadb')),
             'table' => env('DB_CACHE_TABLE', 'cache'),
-            'lock_connection' => env('DB_CACHE_LOCK_CONNECTION'),
+            'lock_connection' => env('DB_CACHE_LOCK_CONNECTION', env('DB_CONNECTION', 'mariadb')),
             'lock_table' => env('DB_CACHE_LOCK_TABLE'),
         ],
 

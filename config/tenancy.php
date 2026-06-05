@@ -17,10 +17,12 @@ return [
      *
      * Only relevant if you're using the domain or subdomain identification middleware.
      */
-    'central_domains' => [
+    'central_domains' => array_values(array_filter([
         '127.0.0.1',
         'localhost',
-    ],
+        parse_url(env('APP_URL', ''), PHP_URL_HOST) ?: null,   // factunet.io
+        env('SERVER_IP'),                                       // 144.202.37.49 (opcional en .env)
+    ])),
 
     /**
      * Tenancy bootstrappers are executed when tenancy is initialized.
@@ -30,7 +32,9 @@ return [
      */
     'bootstrappers' => [
         Stancl\Tenancy\Bootstrappers\DatabaseTenancyBootstrapper::class,
-        Stancl\Tenancy\Bootstrappers\CacheTenancyBootstrapper::class,
+        // CacheTenancyBootstrapper requiere tabla cache en la BD del tenant;
+        // con CACHE_STORE=database en el Mayor el caché vive en la central.
+        // Stancl\Tenancy\Bootstrappers\CacheTenancyBootstrapper::class,
         Stancl\Tenancy\Bootstrappers\FilesystemTenancyBootstrapper::class,
         Stancl\Tenancy\Bootstrappers\QueueTenancyBootstrapper::class,
         // Stancl\Tenancy\Bootstrappers\RedisTenancyBootstrapper::class, // Note: phpredis is needed
@@ -137,7 +141,10 @@ return [
          * disable asset() helper tenancy and explicitly use tenant_asset() calls in places
          * where you want to use tenant-specific assets (product images, avatars, etc).
          */
-        'asset_helper_tenancy' => true,
+        // Desactivado: usamos Vite para assets globales, no assets por tenant.
+        // Con true, asset() se redirige a /tenancy/assets/... que usa identificación
+        // por dominio y falla en nuestro esquema de routing por path.
+        'asset_helper_tenancy' => false,
     ],
 
     /**
@@ -180,7 +187,9 @@ return [
      * enabled. But it may be useful to disable them if you use external
      * storage (e.g. S3 / Dropbox) or have a custom asset controller.
      */
-    'routes' => true,
+    // Desactivado: las rutas de assets de tenancy usan dominio para identificar el tenant.
+    // Nuestros assets son globales (Vite en public/build/), no por tenant.
+    'routes' => false,
 
     /**
      * Parameters used by the tenants:migrate command.

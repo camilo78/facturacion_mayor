@@ -3,13 +3,14 @@
 namespace App\Models;
 
 use App\Models\Concerns\GeneratesUuid;
+use App\Models\Concerns\TracksSyncOrigin;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 
 class CaiAutorizacion extends Model
 {
-    use GeneratesUuid;
+    use GeneratesUuid, TracksSyncOrigin;
 
     protected $table = 'cai_autorizaciones';
     protected $guarded = [];

@@ -7,6 +7,7 @@ use App\Models\Factura;
 use App\Models\Impuesto;
 use App\Models\PuntoEmision;
 use App\Rules\Rtn;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use RuntimeException;
@@ -21,9 +22,12 @@ class EmisorFactura
             'rtn_cliente'              => ['nullable', new Rtn],
             'nombre_cliente'           => ['nullable', 'string', 'max:255'],
             'tipo_pago'                => ['nullable', 'in:contado,credito'],
+            'orden_compra_exenta'      => ['nullable', 'string', 'max:60'],
+            'num_constancia_exonerado' => ['nullable', 'string', 'max:60'],
+            'num_registro_sag'         => ['nullable', 'string', 'max:60'],
             'lineas'                   => ['required', 'array', 'min:1'],
             'lineas.*.descripcion'     => ['required', 'string', 'max:255'],
-            'lineas.*.unidad_medida'   => ['nullable', 'string', 'max:20'],   // ← nuevo
+            'lineas.*.unidad_medida'   => ['nullable', 'string', 'max:20'],
             'lineas.*.cantidad'        => ['nullable', 'numeric', 'min:0.001'],
             'lineas.*.precio_unitario' => ['required', 'numeric', 'min:0'],
             'lineas.*.descuento'       => ['nullable', 'numeric', 'min:0'],
@@ -82,7 +86,7 @@ class EmisorFactura
 
                 $lineas[] = [
                     'descripcion'     => $linea['descripcion'],
-                    'unidad_medida'   => $linea['unidad_medida'] ?? 'unidad',   // ← nuevo (snapshot)
+                    'unidad_medida'   => $linea['unidad_medida'] ?? 'unidad',
                     'cantidad'        => $cantidad,
                     'precio_unitario' => $precio,
                     'descuento'       => $descLinea,
@@ -105,8 +109,12 @@ class EmisorFactura
                 'correlativo'            => $correlativo,
                 'numero_completo'        => $numero,
                 'cai'                    => $cai->cai,
-                'rtn_cliente'            => $datos['rtn_cliente'] ?? null,
-                'nombre_cliente'         => $datos['nombre_cliente'] ?? 'Consumidor Final',
+                'rtn_cliente'              => $datos['rtn_cliente'] ?? null,
+                'nombre_cliente'           => $datos['nombre_cliente'] ?? 'Consumidor Final',
+                'direccion_cliente'        => $datos['direccion_cliente'] ?? null,
+                'orden_compra_exenta'      => $datos['orden_compra_exenta'] ?? null,
+                'num_constancia_exonerado' => $datos['num_constancia_exonerado'] ?? null,
+                'num_registro_sag'         => $datos['num_registro_sag'] ?? null,
                 'subtotal_exento'        => $exento,
                 'subtotal_gravado'       => $gravado,
                 'total_isv'              => $totalIsv,
@@ -115,12 +123,25 @@ class EmisorFactura
                 'tipo_pago'              => $datos['tipo_pago'] ?? 'contado',
                 'estado'                 => 'VIGENTE',
                 'fecha_emision'          => now(),
+                // TODO: validar que el usuario tenga sesión activa en este punto_emision.
+                // Depende del módulo SesionCaja (siguiente etapa).
+                'emitida_por'            => Auth::id(),
             ]);
 
             $factura->detalles()->createMany($lineas);
 
             $cai->correlativo_actual = $correlativo;
             $cai->save();
+
+            activity()
+                ->causedBy(Auth::user())
+                ->performedOn($factura)
+                ->withProperties([
+                    'numero'  => $factura->numero_completo,
+                    'total'   => $factura->total,
+                    'cliente' => $factura->nombre_cliente,
+                ])
+                ->log('factura.emitida');
 
             return $factura;
         });

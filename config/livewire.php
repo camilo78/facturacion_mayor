@@ -129,7 +129,9 @@ return [
     */
 
     'temporary_file_upload' => [
-        'disk' => env('LIVEWIRE_TEMPORARY_FILE_UPLOAD_DISK'), // Example: 'local', 's3'             | Default: 'default'
+        // Disco fijo, excluido del FilesystemTenancyBootstrapper para que la ruta
+        // no cambie entre el upload y la lectura del archivo temporal.
+        'disk' => env('LIVEWIRE_TEMPORARY_FILE_UPLOAD_DISK', 'livewire_tmp'),
         'rules' => null,                                      // Example: ['file', 'mimes:png,jpg'] | Default: ['required', 'file', 'max:12288'] (12MB)
         'directory' => null,                                  // Example: 'tmp'                     | Default: 'livewire-tmp'
         'middleware' => null,                                 // Example: 'throttle:5,1'            | Default: 'throttle:60,1'

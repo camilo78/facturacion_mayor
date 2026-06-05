@@ -7,9 +7,13 @@
     "license": "MIT",
     "require": {
         "php": "^8.3",
+        "barryvdh/laravel-dompdf": "^3.1",
+        "intervention/image": "^4.1",
         "laravel/framework": "^13.8",
         "laravel/tinker": "^3.0",
         "livewire/livewire": "^4.3",
+        "spatie/laravel-activitylog": "^5.0",
+        "spatie/laravel-permission": "^7.4",
         "stancl/tenancy": "^3.10"
     },
     "require-dev": {

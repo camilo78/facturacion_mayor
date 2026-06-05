@@ -3,6 +3,7 @@
 namespace App\Actions\Facturacion;
 
 use App\Models\Factura;
+use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
@@ -38,6 +39,17 @@ class AnulaFactura
                 'anulada_por'      => $userId,
                 'anulada_at'       => now(),
             ]);
+
+            $causante = User::find($userId);
+            activity()
+                ->when($causante, fn ($log) => $log->causedBy($causante))
+                ->performedOn($factura)
+                ->withProperties([
+                    'numero' => $factura->numero_completo,
+                    'motivo' => $motivo,
+                ])
+                ->log('factura.anulada');
+
             return $factura->fresh();
         });
     }

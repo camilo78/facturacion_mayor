@@ -73,7 +73,8 @@ return [
     |
     */
 
-    'connection' => env('SESSION_CONNECTION'),
+    // Anclar a la conexión central para que tenancy no redirija las sesiones al tenant.
+    'connection' => env('SESSION_CONNECTION', env('DB_CONNECTION', 'mariadb')),
 
     /*
     |--------------------------------------------------------------------------

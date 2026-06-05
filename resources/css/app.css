@@ -5,7 +5,145 @@
 @source '../**/*.blade.php';
 @source '../**/*.js';
 
+/* ── Tema ─────────────────────────────────────────────────── */
 @theme {
-    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
-        'Segoe UI Symbol', 'Noto Color Emoji';
+    --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+    --font-mono: ui-monospace, 'JetBrains Mono', 'Cascadia Code', 'Courier New', monospace;
+
+    /* Teal — color de acento principal (encabezados, botones, badges) */
+    --color-primary-50:  #edfafa;
+    --color-primary-100: #c5f1f1;
+    --color-primary-200: #8be3e3;
+    --color-primary-500: #00b4b4;
+    --color-primary-600: #009898;
+    --color-primary-700: #007a7a;
+    --color-primary-800: #005e5e;
+    --color-primary-900: #003d3d;
+
+    /* Navy — sidebar y superficies oscuras */
+    --color-navy-950: #0f2236;
+    --color-navy-900: #142d48;
+    --color-navy-800: #1b3a5c;
+    --color-navy-700: #234872;
+    --color-navy-200: #8bafc8;
+    --color-navy-100: #a8c4d8;
 }
+
+/* ── Utilidades custom (sin @apply a clases propias) ─────── */
+@layer utilities {
+    .tabular-nums { font-variant-numeric: tabular-nums; }
+}
+
+/* ── Componentes custom ─────────────────────────────────── */
+@layer components {
+
+    /* Sidebar nav */
+    .nav-link {
+        @apply flex items-center gap-3 px-3 py-2 rounded-md text-sm text-gray-600
+               hover:bg-gray-100 hover:text-gray-900 transition-colors duration-100;
+    }
+    .nav-link.active {
+        @apply bg-primary-50 text-primary-700 font-medium;
+    }
+
+    /* Card */
+    .card {
+        @apply bg-white border border-gray-200/80;
+        border-top: 2px solid var(--color-primary-600);
+        box-shadow: 0 2px 12px 0 rgba(0,0,0,0.07), 0 1px 3px 0 rgba(0,0,0,0.05);
+    }
+
+    /* Badge */
+    .badge {
+        @apply inline-flex items-center px-2 py-0.5 text-xs font-medium;
+    }
+
+    /* Inputs — NO @apply de clases propias */
+    .form-input {
+        @apply block w-full border border-gray-300 px-3 py-2 text-sm text-gray-900
+               shadow-sm placeholder:text-gray-400
+               focus:border-primary-500 focus:ring-2 focus:ring-primary-500 focus:outline-none
+               disabled:bg-gray-50 disabled:text-gray-500;
+    }
+    .form-input.error {
+        border-color: theme(colors.red.400);
+    }
+    .form-input.error:focus {
+        border-color: theme(colors.red.500);
+        --tw-ring-color: theme(colors.red.500);
+    }
+    .form-select {
+        @apply block w-full border border-gray-300 px-3 py-2 text-sm text-gray-900
+               shadow-sm placeholder:text-gray-400
+               focus:border-primary-500 focus:ring-2 focus:ring-primary-500 focus:outline-none
+               disabled:bg-gray-50 disabled:text-gray-500 cursor-pointer;
+    }
+    .form-label  { @apply block text-sm font-medium text-gray-700 mb-1; }
+    .form-error  { @apply text-xs text-red-600 mt-1; }
+    .form-hint   { @apply text-xs text-gray-500 mt-1; }
+
+    /* Botones — base */
+    .btn {
+        @apply inline-flex items-center justify-center gap-1.5 px-3.5 py-2
+               text-sm font-medium transition-colors duration-100
+               focus:outline-none focus:ring-2 focus:ring-offset-1
+               disabled:opacity-50 disabled:cursor-not-allowed;
+    }
+    .btn-primary {
+        @apply inline-flex items-center justify-center gap-1.5 px-3.5 py-2
+               text-sm font-medium transition-colors duration-100
+               focus:outline-none focus:ring-2 focus:ring-offset-1
+               disabled:opacity-50 disabled:cursor-not-allowed
+               bg-primary-600 text-white
+               hover:bg-primary-700
+               active:bg-primary-800
+               focus:ring-primary-500;
+    }
+    .btn-secondary {
+        @apply inline-flex items-center justify-center gap-1.5 px-3.5 py-2
+               text-sm font-medium transition-colors duration-100
+               focus:outline-none focus:ring-2 focus:ring-offset-1
+               disabled:opacity-50 disabled:cursor-not-allowed
+               bg-[#1b3a5c] text-white
+               hover:bg-[#142d48]
+               active:bg-[#0f2236]
+               focus:ring-primary-500;
+    }
+    .btn-danger {
+        @apply inline-flex items-center justify-center gap-1.5 px-3.5 py-2
+               text-sm font-medium transition-colors duration-100
+               focus:outline-none focus:ring-2 focus:ring-offset-1
+               disabled:opacity-50 disabled:cursor-not-allowed
+               bg-red-600 text-white
+               hover:bg-red-700
+               active:bg-red-800
+               focus:ring-red-500;
+    }
+    .btn-ghost {
+        @apply inline-flex items-center justify-center gap-1.5 px-3.5 py-2
+               text-sm font-medium transition-colors duration-100
+               focus:outline-none focus:ring-2 focus:ring-offset-1
+               disabled:opacity-50 disabled:cursor-not-allowed
+               text-gray-600
+               hover:bg-primary-50 hover:text-primary-700
+               active:bg-primary-100
+               focus:ring-primary-500;
+    }
+    .btn-sm { @apply px-2.5 py-1.5 text-xs; }
+}
+
+/* ── Barra de progreso global ───────────────────────────── */
+@keyframes loadbar {
+    0%   { transform: translateX(-100%); }
+    100% { transform: translateX(400%); }
+}
+
+/* ── x-cloak (oculta antes de que Alpine inicialice) ─────── */
+[x-cloak] { display: none !important; }
+
+/* ── Scrollbar fino ─────────────────────────────────────── */
+:root { scrollbar-gutter: stable; }
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: #9ca3af; }

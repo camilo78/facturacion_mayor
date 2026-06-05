@@ -12,7 +12,13 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
-            'instance.mode' => \App\Http\Middleware\InstanceModeMiddleware::class,
+            'instance.mode'  => \App\Http\Middleware\InstanceModeMiddleware::class,
+            'tenancy.by.id'  => \App\Http\Middleware\TenanciaByTenantId::class,
+            'tenant.auth'    => \App\Http\Middleware\TenantAuth::class,
+        ]);
+
+        $middleware->web(append: [
+            \App\Http\Middleware\InitializeTenancyFromSession::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

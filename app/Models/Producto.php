@@ -3,11 +3,12 @@
 namespace App\Models;
 
 use App\Models\Concerns\GeneratesUuid;
+use App\Models\Concerns\TracksSyncOrigin;
 use Illuminate\Database\Eloquent\Model;
 
 class Producto extends Model
 {
-    use GeneratesUuid;
+    use GeneratesUuid, TracksSyncOrigin;
 
     public const TIPOS = ['bien', 'servicio'];
 

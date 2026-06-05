@@ -7,6 +7,7 @@ namespace App\Providers;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
+use Spatie\Permission\PermissionRegistrar;
 use Stancl\JobPipeline\JobPipeline;
 use Stancl\Tenancy\Events;
 use Stancl\Tenancy\Jobs;
@@ -70,6 +71,10 @@ class TenancyServiceProvider extends ServiceProvider
             Events\InitializingTenancy::class => [],
             Events\TenancyInitialized::class => [
                 Listeners\BootstrapTenancy::class,
+                // Evitar cross-tenant bleed en el cache de permisos de Spatie
+                function () {
+                    app(PermissionRegistrar::class)->forgetCachedPermissions();
+                },
             ],
 
             Events\EndingTenancy::class => [],

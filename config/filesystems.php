@@ -47,6 +47,14 @@ return [
             'report' => false,
         ],
 
+        // Disco exclusivo para archivos temporales de Livewire.
+        // NO está en la lista 'disks' de tenancy.php → su root nunca cambia.
+        'livewire_tmp' => [
+            'driver' => 'local',
+            'root'   => storage_path('app/livewire-tmp'),
+            'throw'  => false,
+        ],
+
         's3' => [
             'driver' => 's3',
             'key' => env('AWS_ACCESS_KEY_ID'),
