@@ -3,6 +3,12 @@ set -e
 
 echo "=== Factunet Auxiliar — Inicio ==="
 
+# Generar APP_KEY si no está definida
+if [ -z "${APP_KEY}" ]; then
+    echo "Generando APP_KEY..."
+    php artisan key:generate --force
+fi
+
 # Esperar a que MariaDB esté lista
 echo "Esperando base de datos..."
 until mysql -h"${DB_HOST:-db}" \

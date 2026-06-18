@@ -31,6 +31,13 @@ RUN composer install --no-dev --no-scripts --no-autoloader --prefer-dist
 # Copiar toda la aplicación
 COPY . .
 
+# Crear directorios que Laravel necesita (excluidos del .dockerignore)
+RUN mkdir -p bootstrap/cache \
+             storage/framework/cache \
+             storage/framework/sessions \
+             storage/framework/views \
+             storage/logs
+
 # Autoloader optimizado
 RUN composer dump-autoload --optimize --no-dev
 
