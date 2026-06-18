@@ -207,7 +207,37 @@
                     @else
                     <p class="text-xs text-gray-400 mt-0.5">Consumidor Final</p>
                     @endif
+                    @if($facturaViendo->direccion_cliente)
+                    <p class="text-xs text-gray-500 mt-0.5">{{ $facturaViendo->direccion_cliente }}</p>
+                    @endif
                 </div>
+
+                {{-- Campos SAR exoneración (solo si aplica) --}}
+                @if($facturaViendo->orden_compra_exenta || $facturaViendo->num_constancia_exonerado || $facturaViendo->num_registro_sag)
+                <div class="px-5 py-4 border-b border-gray-100 bg-amber-50/40">
+                    <p class="text-[10px] font-semibold text-amber-700 uppercase tracking-wide mb-2">Exoneración / Exención SAR</p>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        @if($facturaViendo->orden_compra_exenta)
+                        <div>
+                            <p class="text-[10px] text-gray-400 uppercase tracking-wide">No. Orden de compra exenta</p>
+                            <p class="text-xs font-mono font-semibold text-gray-800 mt-0.5">{{ $facturaViendo->orden_compra_exenta }}</p>
+                        </div>
+                        @endif
+                        @if($facturaViendo->num_constancia_exonerado)
+                        <div>
+                            <p class="text-[10px] text-gray-400 uppercase tracking-wide">No. Constancia Reg. Exonerado</p>
+                            <p class="text-xs font-mono font-semibold text-gray-800 mt-0.5">{{ $facturaViendo->num_constancia_exonerado }}</p>
+                        </div>
+                        @endif
+                        @if($facturaViendo->num_registro_sag)
+                        <div>
+                            <p class="text-[10px] text-gray-400 uppercase tracking-wide">No. Registro SAG</p>
+                            <p class="text-xs font-mono font-semibold text-gray-800 mt-0.5">{{ $facturaViendo->num_registro_sag }}</p>
+                        </div>
+                        @endif
+                    </div>
+                </div>
+                @endif
 
                 {{-- Detalles --}}
                 <div class="border-b border-gray-100">

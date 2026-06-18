@@ -55,6 +55,17 @@ return [
             'throw'  => false,
         ],
 
+        // Disco central para activos compartidos (logos de empresa, etc.)
+        // Usa base_path() — inmune al cambio de storage_path() que hace tenancy.
+        // NO agregar a la lista 'disks' de tenancy.php.
+        'central_public' => [
+            'driver'     => 'local',
+            'root'       => base_path('storage/app/public'),
+            'url'        => rtrim(env('APP_URL', 'http://localhost'), '/').'/storage',
+            'visibility' => 'public',
+            'throw'      => false,
+        ],
+
         's3' => [
             'driver' => 's3',
             'key' => env('AWS_ACCESS_KEY_ID'),

@@ -1,0 +1,81 @@
+services:
+
+  # ── Nginx ─────────────────────────────────────────────────────────────────
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: auxiliar_nginx
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-80}:80"
+    volumes:
+      - .:/var/www/html:ro
+      - ./docker/auxiliar/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - app
+
+  # ── PHP-FPM (app) ──────────────────────────────────────────────────────────
+  app:
+    build:
+      context: .
+      dockerfile: docker/auxiliar/Dockerfile
+    container_name: auxiliar_app
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - .:/var/www/html
+      - auxiliar_storage:/var/www/html/storage
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # ── MariaDB ────────────────────────────────────────────────────────────────
+  db:
+    image: mariadb:11.4
+    container_name: auxiliar_db
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-rootsecret}
+      MARIADB_DATABASE: ${DB_DATABASE:-auxiliar_landlord}
+      MARIADB_USER: ${DB_USERNAME:-auxiliar}
+      MARIADB_PASSWORD: ${DB_PASSWORD:-secret}
+    volumes:
+      - auxiliar_db:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mariadb-admin", "ping", "-h", "localhost", "-u", "root", "-p${DB_ROOT_PASSWORD:-rootsecret}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ── Scheduler (sync + jobs programados) ───────────────────────────────────
+  scheduler:
+    build:
+      context: .
+      dockerfile: docker/auxiliar/Dockerfile
+    container_name: auxiliar_scheduler
+    restart: unless-stopped
+    env_file: .env
+    command: php artisan schedule:work
+    volumes:
+      - .:/var/www/html
+      - auxiliar_storage:/var/www/html/storage
+    depends_on:
+      - app
+
+  # ── Worker (cola de jobs) ──────────────────────────────────────────────────
+  worker:
+    build:
+      context: .
+      dockerfile: docker/auxiliar/Dockerfile
+    container_name: auxiliar_worker
+    restart: unless-stopped
+    env_file: .env
+    command: php artisan queue:work database --sleep=3 --tries=3 --max-time=3600
+    volumes:
+      - .:/var/www/html
+      - auxiliar_storage:/var/www/html/storage
+    depends_on:
+      - app
+
+volumes:
+  auxiliar_db:
+  auxiliar_storage:

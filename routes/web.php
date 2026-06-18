@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\FacturaPdfController;
+use App\Http\Controllers\ReportesController;
 use App\Livewire\Dashboard;
 use App\Livewire\FormFactura;
 use App\Livewire\PosFactura;
@@ -9,12 +10,15 @@ use App\Livewire\FormUsuario;
 use App\Livewire\GestionCai;
 use App\Livewire\GestionCajas;
 use App\Livewire\GestionClientes;
+use App\Livewire\ConfiguracionEmpresa;
 use App\Livewire\GestionEstablecimientos;
 use App\Livewire\GestionProductos;
+use App\Livewire\GestionReportes;
 use App\Livewire\GestionRoles;
 use App\Livewire\GestionUsuarios;
 use App\Livewire\ListadoFacturas;
 use App\Livewire\LoginTenant;
+use App\Livewire\MonitoreoInstancias;
 use App\Livewire\PerfilUsuario;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
@@ -22,6 +26,9 @@ use Illuminate\Support\Facades\Route;
 Route::get('/', function () {
     return view('welcome');
 });
+
+// Panel de administración del Mayor (sin contexto de tenant)
+Route::get('/mayor/instancias', MonitoreoInstancias::class)->name('mayor.instancias');
 
 Route::prefix('empresa/{tenantId}')
     ->name('tenant.')
@@ -49,12 +56,18 @@ Route::prefix('empresa/{tenantId}')
             Route::get('factura/nueva',         FormFactura::class)->name('factura.nueva');
             Route::get('pos',                   PosFactura::class)->name('pos');
             Route::get('factura/{id}/pdf',      [FacturaPdfController::class, 'show'])->name('factura.pdf');
+            Route::get('reportes',              GestionReportes::class)->name('reportes');
+            Route::middleware('can:reportes.ventas')->group(function () {
+                Route::get('reportes/pdf',      [ReportesController::class, 'pdf'])->name('reportes.pdf');
+                Route::get('reportes/csv',      [ReportesController::class, 'csv'])->name('reportes.csv');
+            });
 
             // Catálogos
             Route::get('clientes',  GestionClientes::class)->name('clientes');
             Route::get('productos', GestionProductos::class)->name('productos');
 
             // Configuración
+            Route::get('empresa',          ConfiguracionEmpresa::class)->name('empresa');
             Route::get('establecimientos', GestionEstablecimientos::class)->name('establecimientos');
             Route::get('cajas',            GestionCajas::class)->name('cajas');
             Route::get('cai',              GestionCai::class)->name('cai');

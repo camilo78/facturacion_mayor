@@ -7,6 +7,7 @@ use Illuminate\Foundation\Configuration\Middleware;
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
         web: __DIR__.'/../routes/web.php',
+        api: __DIR__.'/../routes/api.php',
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
     )
@@ -15,6 +16,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'instance.mode'  => \App\Http\Middleware\InstanceModeMiddleware::class,
             'tenancy.by.id'  => \App\Http\Middleware\TenanciaByTenantId::class,
             'tenant.auth'    => \App\Http\Middleware\TenantAuth::class,
+            'auth.sync'      => \App\Http\Middleware\AuthenticateSyncToken::class,
         ]);
 
         $middleware->web(append: [

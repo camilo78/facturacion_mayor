@@ -557,6 +557,34 @@
                 ])>L. {{ number_format($cambio, 2) }}</span>
             </div>
 
+            {{-- Exoneración SAR (colapsable) --}}
+            <div x-data="{ abierto: {{ ($ordenCompraExenta || $numConstanciaExonerado || $numRegistroSag) ? 'true' : 'false' }} }">
+                <button type="button" @click="abierto = !abierto"
+                        class="flex items-center gap-1.5 text-[11px] font-medium text-gray-400 hover:text-primary-600 transition-colors w-full text-left">
+                    <svg :class="abierto ? 'rotate-90' : ''" class="w-3 h-3 transition-transform shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/>
+                    </svg>
+                    Campos exentos / exonerados (SAR)
+                </button>
+                <div x-show="abierto" x-collapse class="mt-2 space-y-2">
+                    <div>
+                        <label class="form-label text-[10px]">No. Orden de compra exenta</label>
+                        <input wire:model="ordenCompraExenta" type="text" maxlength="60"
+                               placeholder="OCE-2024-001" class="form-input font-mono text-xs py-1.5"/>
+                    </div>
+                    <div>
+                        <label class="form-label text-[10px]">No. Constancia Registro Exonerado</label>
+                        <input wire:model="numConstanciaExonerado" type="text" maxlength="60"
+                               placeholder="CRE-123456" class="form-input font-mono text-xs py-1.5"/>
+                    </div>
+                    <div>
+                        <label class="form-label text-[10px]">No. Registro SAG</label>
+                        <input wire:model="numRegistroSag" type="text" maxlength="60"
+                               placeholder="SAG-2024-0001" class="form-input font-mono text-xs py-1.5"/>
+                    </div>
+                </div>
+            </div>
+
             {{-- Error --}}
             @if($error)
             <p class="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{{ $error }}</p>

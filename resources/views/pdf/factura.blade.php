@@ -1,3 +1,17 @@
+@php
+use Illuminate\Support\Facades\Storage;
+$colorP  = $tenant->color_primario   ?? '#1b3a5c';
+$colorS  = $tenant->color_secundario ?? '#009898';
+$logoB64 = null;
+if ($tenant->logo && Storage::disk('central_public')->exists($tenant->logo)) {
+    $logoData = Storage::disk('central_public')->get($tenant->logo);
+    $ext      = strtolower(pathinfo($tenant->logo, PATHINFO_EXTENSION));
+    $mimeMap  = ['jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'png' => 'image/png',
+                 'gif' => 'image/gif',  'webp'  => 'image/webp'];
+    $logoMime = $mimeMap[$ext] ?? 'image/png';
+    $logoB64  = "data:{$logoMime};base64," . base64_encode($logoData);
+}
+@endphp
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -15,8 +29,8 @@ body {
 .page { padding: 22px 28px 18px; }
 
 /* ─── Utilidades ─── */
-.teal  { color: #009898; }
-.navy  { color: #1b3a5c; }
+.teal  { color: {{ $colorS }}; }
+.navy  { color: {{ $colorP }}; }
 .mono  { font-family: 'Courier New', monospace; }
 .right { text-align: right; }
 .center{ text-align: center; }
@@ -25,28 +39,60 @@ body {
 .header {
     display: table;
     width: 100%;
-    border-bottom: 3px solid #009898;
+    border-bottom: 3px solid {{ $colorS }};
     padding-bottom: 10px;
     margin-bottom: 8px;
 }
-.header-left  { display: table-cell; width: 52%; vertical-align: top; }
-.header-right { display: table-cell; width: 48%; vertical-align: top; text-align: right; }
+.header-logo  {
+    display: table-cell;
+    width: 18%;
+    vertical-align: middle;
+    padding-right: 10px;
+}
+.header-emp   {
+    display: table-cell;
+    width: 44%;
+    vertical-align: top;
+    border-left: 1px solid #e5e7eb;
+    padding-left: 12px;
+    padding-right: 10px;
+}
+.header-right {
+    display: table-cell;
+    width: 38%;
+    vertical-align: top;
+    text-align: right;
+    border-left: 1px solid #e5e7eb;
+    padding-left: 12px;
+}
+/* Sin logo: empresa ocupa el espacio del logo */
+.header-emp-full {
+    display: table-cell;
+    width: 62%;
+    vertical-align: top;
+    padding-right: 10px;
+}
+.empresa-logo {
+    width: 100%;
+    height: auto;
+    display: block;
+}
 
 .empresa-nombre {
     font-size: 15px;
     font-weight: 700;
-    color: #1b3a5c;
+    color: {{ $colorP }};
     text-transform: uppercase;
     line-height: 1.2;
 }
-.empresa-comercial { font-size: 10px; color: #009898; font-weight: 600; margin-top: 2px; }
+.empresa-comercial { font-size: 10px; color: {{ $colorS }}; font-weight: 600; margin-top: 2px; }
 .empresa-datos { font-size: 8.5px; color: #444; margin-top: 5px; line-height: 1.4; }
-.empresa-datos .lbl { color: #1b3a5c; font-weight: 700; }
+.empresa-datos .lbl { color: {{ $colorP }}; font-weight: 700; }
 
 .doc-tipo {
     font-size: 22px;
     font-weight: 900;
-    color: #009898;
+    color: {{ $colorS }};
     text-transform: uppercase;
     letter-spacing: 2px;
 }
@@ -54,7 +100,7 @@ body {
     font-family: 'Courier New', monospace;
     font-size: 13px;
     font-weight: 700;
-    color: #1b3a5c;
+    color: {{ $colorP }};
     margin-top: 3px;
 }
 .cai-block {
@@ -65,14 +111,14 @@ body {
 }
 .cai-block .cai-lbl {
     font-weight: 700;
-    color: #009898;
+    color: {{ $colorS }};
     text-transform: uppercase;
     font-size: 7px;
     letter-spacing: 0.5px;
 }
 .cai-block .cai-val {
     font-family: 'Courier New', monospace;
-    color: #1b3a5c;
+    color: {{ $colorP }};
     font-weight: 700;
     font-size: 8px;
 }
@@ -96,18 +142,18 @@ body {
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.7px;
-    color: #009898;
+    color: {{ $colorS }};
     margin-bottom: 3px;
 }
 .info-value { font-size: 9.5px; color: #111; line-height: 1.4; }
-.info-value strong { color: #1b3a5c; }
+.info-value strong { color: {{ $colorP }}; }
 .info-field { font-size: 9px; color: #111; line-height: 1.5; }
-.info-field .lbl { color: #009898; font-weight: 700; }
+.info-field .lbl { color: {{ $colorS }}; font-weight: 700; }
 
 /* ─── Tabla de ítems ─── */
 .items-table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
 
-.items-table thead tr { background: #009898; }
+.items-table thead tr { background: {{ $colorS }}; }
 .items-table thead th {
     padding: 5px 7px;
     font-size: 7.5px;
@@ -166,7 +212,7 @@ body {
 .bottom-right { display: table-cell; width: 48%; vertical-align: top; }
 
 .letras-box {
-    border: 1px solid #009898;
+    border: 1px solid {{ $colorS }};
     padding: 7px 10px;
     font-size: 8.5px;
     margin-bottom: 8px;
@@ -178,10 +224,10 @@ body {
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.6px;
-    color: #009898;
+    color: {{ $colorS }};
     margin-bottom: 2px;
 }
-.letras-value { font-weight: 700; color: #1b3a5c; line-height: 1.5; }
+.letras-value { font-weight: 700; color: {{ $colorP }}; line-height: 1.5; }
 .letras-ref {
     margin-top: 5px;
     font-size: 8px;
@@ -198,7 +244,7 @@ body {
     line-height: 1.4;
 }
 .sar-field:last-child { border-bottom: none; }
-.sar-field-lbl { color: #1b3a5c; font-weight: 700; }
+.sar-field-lbl { color: {{ $colorP }}; font-weight: 700; }
 
 .totals-box { border: 1px solid #e5e7eb; }
 .totals-row {
@@ -225,7 +271,7 @@ body {
 .totals-grand {
     display: table;
     width: 100%;
-    background: #1b3a5c;
+    background: {{ $colorP }};
     color: #fff;
     padding: 7px 9px;
 }
@@ -271,22 +317,22 @@ body {
 }
 
 /* ─── Footer ─── */
-.footer { border-top: 2px solid #009898; margin-top: 10px; padding-top: 6px; page-break-inside: avoid; }
+.footer { border-top: 2px solid {{ $colorS }}; margin-top: 10px; padding-top: 6px; page-break-inside: avoid; }
 .footer-copies { display: table; width: 100%; margin-bottom: 5px; }
 .footer-copy {
     display: table-cell;
     text-align: center;
     font-size: 8px;
     font-weight: 700;
-    color: #1b3a5c;
+    color: {{ $colorP }};
     padding: 4px 0;
-    border: 1px solid #1b3a5c;
+    border: 1px solid {{ $colorP }};
 }
 .footer-copy + .footer-copy { border-left: none; }
 .footer-meta { display: table; width: 100%; }
 .footer-left  { display: table-cell; font-size: 7.5px; color: #666; vertical-align: middle; }
 .footer-right { display: table-cell; text-align: right; font-size: 7.5px; color: #666; vertical-align: middle; }
-.footer-legal { font-size: 7px; color: #009898; font-weight: 600; }
+.footer-legal { font-size: 7px; color: {{ $colorS }}; font-weight: 600; }
 </style>
 </head>
 <body>
@@ -397,7 +443,16 @@ $totalPaginas = count($paginas);
 
     {{-- ══ ENCABEZADO (se repite manualmente en cada página) ═══════════ --}}
     <div class="header">
-        <div class="header-left">
+
+        {{-- Columna 1: Logo (solo si existe) --}}
+        @if($logoB64)
+        <div class="header-logo">
+            <img src="{{ $logoB64 }}" class="empresa-logo" alt="{{ $tenant->nombre }}">
+        </div>
+        @endif
+
+        {{-- Columna 2: Info empresa --}}
+        <div class="{{ $logoB64 ? 'header-emp' : 'header-emp-full' }}">
             <div class="empresa-nombre">{{ $tenant->nombre }}</div>
             @if($tenant->nombre_comercial && $tenant->nombre_comercial !== $tenant->nombre)
             <div class="empresa-comercial">{{ $tenant->nombre_comercial }}</div>
@@ -414,6 +469,8 @@ $totalPaginas = count($paginas);
                 <br><span class="lbl">RTN:</span> {{ $tenant->rtn ?? 'N/A' }}
             </div>
         </div>
+
+        {{-- Columna 3: FACTURA + número + CAI --}}
         <div class="header-right">
             <div class="doc-tipo">Factura</div>
             <div class="doc-numero">{{ $factura->numero_completo }}</div>
@@ -448,7 +505,7 @@ $totalPaginas = count($paginas);
                 <strong>{{ $factura->nombre_cliente }}</strong><br>
                 @if(!empty($factura->direccion_cliente)){{ $factura->direccion_cliente }}<br>@endif
                 @if($factura->rtn_cliente)
-                    <span style="color:#009898;font-weight:700">RTN:</span> {{ $factura->rtn_cliente }}
+                    <span style="color:{{ $colorS }};font-weight:700">RTN:</span> {{ $factura->rtn_cliente }}
                 @endif
             </div>
         </div>
@@ -493,10 +550,10 @@ $totalPaginas = count($paginas);
                 </td>
                 <td class="center" style="font-size:8px">
                     @if($d->impuesto_tasa > 0) ISV {{ number_format($d->impuesto_tasa, 0) }}%
-                    @else <span style="color:#009898;font-weight:700">Exento</span>
+                    @else <span style="color:{{ $colorS }};font-weight:700">Exento</span>
                     @endif
                 </td>
-                <td class="right" style="font-weight:700;color:#1b3a5c">L {{ number_format($d->total, 2) }}</td>
+                <td class="right" style="font-weight:700;color:{{ $colorP }}">L {{ number_format($d->total, 2) }}</td>
             </tr>
             @endforeach
         </tbody>
@@ -522,7 +579,7 @@ $totalPaginas = count($paginas);
                     <div class="letras-value">{{ montoALetras($factura->total) }}</div>
                     <div class="letras-ref">
                         Referencia para su pago:
-                        <strong style="color:#1b3a5c;font-family:'Courier New',monospace">{{ $factura->numero_completo }}</strong>
+                        <strong style="color:{{ $colorP }};font-family:'Courier New',monospace">{{ $factura->numero_completo }}</strong>
                     </div>
                 </div>
                 <div class="sar-fields">
@@ -600,7 +657,7 @@ $totalPaginas = count($paginas);
                 <div class="footer-right">
                     <span style="color:#999">{{ now()->format('d/m/Y H:i') }}</span>
                     @if($totalPaginas > 1)
-                    <br><span style="color:#1b3a5c;font-weight:700">Página {{ $totalPaginas }} de {{ $totalPaginas }}</span>
+                    <br><span style="color:{{ $colorP }};font-weight:700">Página {{ $totalPaginas }} de {{ $totalPaginas }}</span>
                     @endif
                 </div>
             </div>

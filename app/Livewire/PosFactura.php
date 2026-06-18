@@ -41,6 +41,11 @@ class PosFactura extends Component
     public string $tipoPago    = 'contado';
     public string $montoPagado = '';
 
+    // Exoneración SAR (opcionales)
+    public string $ordenCompraExenta      = '';
+    public string $numConstanciaExonerado = '';
+    public string $numRegistroSag         = '';
+
     // Estado
     public ?array $facturaEmitida = null;
     public string $error          = '';
@@ -275,8 +280,11 @@ class PosFactura extends Component
                 'rtn_cliente'       => trim($this->rtnCliente) ?: null,
                 'nombre_cliente'    => trim($this->nombreCliente) ?: 'Consumidor Final',
                 'direccion_cliente' => trim($this->direccionCliente) ?: null,
-                'tipo_pago'         => $this->tipoPago,
-                'lineas'            => $lineas,
+                'tipo_pago'                => $this->tipoPago,
+                'orden_compra_exenta'      => trim($this->ordenCompraExenta) ?: null,
+                'num_constancia_exonerado' => trim($this->numConstanciaExonerado) ?: null,
+                'num_registro_sag'         => trim($this->numRegistroSag) ?: null,
+                'lineas'                   => $lineas,
             ]);
 
             $this->facturaEmitida = [
@@ -292,11 +300,15 @@ class PosFactura extends Component
                 'fecha'   => now()->format('d/m/Y H:i'),
             ];
 
-            $this->carrito       = [];
-            $this->mostrarPago   = false;
-            $this->nombreCliente = 'Consumidor Final';
-            $this->rtnCliente    = '';
-            $this->tipoPago      = 'contado';
+            $this->carrito                  = [];
+            $this->mostrarPago              = false;
+            $this->nombreCliente            = 'Consumidor Final';
+            $this->rtnCliente               = '';
+            $this->direccionCliente         = '';
+            $this->tipoPago                 = 'contado';
+            $this->ordenCompraExenta        = '';
+            $this->numConstanciaExonerado   = '';
+            $this->numRegistroSag           = '';
             $this->calcularTotales();
             $this->cargarCai();
 

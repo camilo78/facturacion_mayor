@@ -68,6 +68,9 @@
                 $user?->can('facturas.ver')
                     ? ['name' => 'facturas',      'icon' => 'document-text', 'label' => 'Facturas',     'href' => route('tenant.facturas', $tid)]
                     : null,
+                $user?->can('reportes.ventas')
+                    ? ['name' => 'reportes',      'icon' => 'chart-bar',     'label' => 'Reportes',     'href' => route('tenant.reportes', $tid)]
+                    : null,
             ]),
             'Catálogos' => array_filter([
                 $user?->can('clientes.ver')
@@ -78,6 +81,9 @@
                     : null,
             ]),
             'Configuración' => array_filter([
+                $user?->can('empresa.editar')
+                    ? ['name' => 'empresa',          'icon' => 'identification',   'label' => 'Mi Empresa',      'href' => route('tenant.empresa',          $tid)]
+                    : null,
                 $user?->can('cai.gestionar')
                     ? ['name' => 'cai',              'icon' => 'key',             'label' => 'CAI',              'href' => route('tenant.cai',              $tid)]
                     : null,
