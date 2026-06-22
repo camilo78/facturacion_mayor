@@ -27,9 +27,14 @@ php artisan migrate --force
 echo "Migrando tablas del tenant (si aplica)..."
 php artisan tenants:migrate --force 2>/dev/null || true
 
-# Bootstrap: registra el tenant local y descarga datos del Mayor (solo la primera vez)
+# Bootstrap: registra el tenant local y descarga datos del Mayor (solo la primera vez).
+# NO es fatal: si el Mayor no es alcanzable (red caída, primer arranque sin conexión),
+# la app levanta igual y el scheduler reintenta cada 5 min hasta que haya conexión.
 echo "Ejecutando bootstrap de instancia..."
-php artisan instance:bootstrap
+if ! php artisan instance:bootstrap; then
+    echo "⚠  Bootstrap pendiente (Mayor no alcanzable). La app inicia en modo degradado."
+    echo "   El scheduler reintentará automáticamente cuando haya conexión."
+fi
 
 # Optimizar para producción
 php artisan config:cache
