@@ -1,7 +1,16 @@
 #!/usr/bin/env bash
 # =============================================================================
 #  Factunet — Instalador del Nodo Auxiliar
-#  Versión 1.0
+#  Versión 2.0
+#
+#  Uso:
+#    1. Clona el repositorio:  git clone <URL> factunet-auxiliar && cd factunet-auxiliar
+#    2. Ejecuta el instalador: bash install-auxiliar.sh
+#
+#  Si la instalación se interrumpe, vuelve a ejecutar el mismo comando
+#  y el script retomará desde donde quedó.
+#
+#  Para reiniciar desde cero:  bash install-auxiliar.sh --reset
 # =============================================================================
 set -euo pipefail
 
@@ -54,17 +63,25 @@ ask_yes() {
     [[ "${resp,,}" == "s" || "${resp,,}" == "si" || "${resp,,}" == "y" || "${resp,,}" == "yes" ]]
 }
 
-spinner() {
-    local pid=$1 msg="${2:-Procesando...}" delay=0.1
-    local frames=('⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏')
-    local i=0
-    while kill -0 "$pid" 2>/dev/null; do
-        printf "\r  ${CYAN}${frames[$i]}${NC}  %s" "$msg"
-        i=$(( (i+1) % ${#frames[@]} ))
-        sleep "$delay"
-    done
-    printf "\r"
-}
+# ── Directorio de trabajo ─────────────────────────────────────────────────────
+# El script siempre opera desde el directorio donde reside
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+
+# ── Progreso de instalación ───────────────────────────────────────────────────
+# Permite reanudar si el script se interrumpe
+STATE_FILE="$SCRIPT_DIR/.install_progress"
+
+mark_done() { grep -qxF "$1" "$STATE_FILE" 2>/dev/null || echo "$1" >> "$STATE_FILE"; }
+is_done()   { grep -qxF "$1" "$STATE_FILE" 2>/dev/null; }
+
+# ── Bandera --reset ───────────────────────────────────────────────────────────
+if [[ "${1:-}" == "--reset" ]]; then
+    warn "Modo reset: se borrará el progreso guardado y se reconfigurará desde cero."
+    rm -f "$STATE_FILE"
+    info "Progreso eliminado. El .env existente será consultado durante la instalación."
+    echo
+fi
 
 # ── Banner ────────────────────────────────────────────────────────────────────
 clear
@@ -78,22 +95,23 @@ cat << 'BANNER'
   ╚═╝     ╚═╝  ╚═╝ ╚═════╝   ╚═╝    ╚═════╝ ╚═╝  ╚═══╝╚══════╝   ╚═╝
 BANNER
 echo -e "${NC}"
-echo -e "  ${BOLD}Instalador del Nodo Auxiliar${NC}  ${DIM}v1.0${NC}"
+echo -e "  ${BOLD}Instalador del Nodo Auxiliar${NC}  ${DIM}v2.0${NC}"
 divider
-echo -e "  Este script clona el repositorio, configura el entorno,"
-echo -e "  levanta los contenedores Docker y verifica la conexión con el Mayor."
+echo -e "  Directorio de instalación: ${BOLD}$SCRIPT_DIR${NC}"
+echo
+echo -e "  ${DIM}Si la instalación fue interrumpida, este script retomará"
+echo -e "  desde el último paso completado.${NC}"
+echo -e "  ${DIM}Para reinstalar desde cero: bash install-auxiliar.sh --reset${NC}"
 divider
 echo
 
-# ── Paso 0: Verificar prerequisitos ──────────────────────────────────────────
-step "PASO 0: Verificando prerequisitos"
+# ── PASO 1: Verificar prerequisitos ──────────────────────────────────────────
+step "PASO 1: Verificando prerequisitos del sistema"
 
 MISSING=()
 
-command -v git         &>/dev/null || MISSING+=("git")
-command -v docker      &>/dev/null || MISSING+=("docker")
+command -v docker &>/dev/null || MISSING+=("docker")
 
-# Detectar docker compose (plugin v2 o binario v1)
 if docker compose version &>/dev/null 2>&1; then
     COMPOSE_CMD="docker compose"
 elif command -v docker-compose &>/dev/null; then
@@ -102,80 +120,64 @@ else
     MISSING+=("docker-compose")
 fi
 
+command -v curl    &>/dev/null || MISSING+=("curl")
+command -v openssl &>/dev/null || MISSING+=("openssl")
+
 if [[ ${#MISSING[@]} -gt 0 ]]; then
     error "Faltan los siguientes programas: ${MISSING[*]}"
     echo
     echo -e "  ${DIM}Instálalos con:${NC}"
-    echo -e "  ${DIM}  Ubuntu/Debian: sudo apt install git docker.io docker-compose-plugin${NC}"
-    echo -e "  ${DIM}  CentOS/RHEL:   sudo yum install git docker docker-compose-plugin${NC}"
+    echo -e "  ${DIM}  Ubuntu/Debian: sudo apt install docker.io docker-compose-plugin curl openssl${NC}"
+    echo -e "  ${DIM}  CentOS/RHEL:   sudo yum install docker docker-compose-plugin curl openssl${NC}"
     exit 1
 fi
 
-# Verificar que Docker esté corriendo
 if ! docker info &>/dev/null; then
-    fatal "Docker no está en ejecución. Inicia el servicio con: sudo systemctl start docker"
+    fatal "Docker no está en ejecución. Inícialo con: sudo systemctl start docker"
 fi
 
-ok "git            $(git --version | awk '{print $3}')"
 ok "docker         $(docker --version | awk '{print $3}' | tr -d ',')"
 ok "docker compose disponible ($COMPOSE_CMD)"
+ok "curl / openssl disponibles"
 echo
 
-# ── Paso 1: Repositorio ───────────────────────────────────────────────────────
-step "PASO 1: Repositorio"
-
-REPO_URL=$(ask "URL del repositorio git" "")
-INSTALL_DIR=$(ask "Directorio de instalación" "/opt/factunet-auxiliar")
-
-if [[ -d "$INSTALL_DIR" && -n "$(ls -A "$INSTALL_DIR" 2>/dev/null)" ]]; then
-    warn "El directorio '$INSTALL_DIR' ya existe y no está vacío."
-    if ask_yes "¿Deseas usarlo de todas formas (sin clonar de nuevo)?"; then
-        CLONED=false
-    else
-        fatal "Elige otro directorio o vacía el existente."
-    fi
-else
-    CLONED=true
+# Verificar que el script está dentro del repositorio correcto
+COMPOSE_FILE="docker-compose.auxiliar.yml"
+if [[ ! -f "$COMPOSE_FILE" ]]; then
+    fatal "No se encontró '$COMPOSE_FILE' en $SCRIPT_DIR\n  Asegúrate de ejecutar este script desde la raíz del repositorio clonado."
 fi
 
-if $CLONED; then
-    info "Clonando $REPO_URL en $INSTALL_DIR ..."
-    git clone "$REPO_URL" "$INSTALL_DIR" || fatal "Error al clonar el repositorio."
-    ok "Repositorio clonado correctamente."
-fi
-
-cd "$INSTALL_DIR"
-ok "Directorio de trabajo: $(pwd)"
+ok "Repositorio detectado en $SCRIPT_DIR"
 echo
 
-# ── Paso 2: Configuración del .env ───────────────────────────────────────────
+# ── PASO 2: Configuración del .env ───────────────────────────────────────────
 step "PASO 2: Configuración del entorno (.env)"
 divider
 
-if [[ -f .env ]]; then
+if is_done "env_configured" && [[ -f .env ]]; then
+    ok ".env ya configurado (paso completado previamente)."
+    ENV_SKIP=true
+elif [[ -f .env ]]; then
     warn "Ya existe un archivo .env."
     if ask_yes "¿Deseas reconfigurarlo?"; then
-        cp .env .env.bak.$(date +%Y%m%d_%H%M%S)
-        info "Respaldo guardado en .env.bak.*"
+        cp .env ".env.bak.$(date +%Y%m%d_%H%M%S)"
+        info "Respaldo guardado."
+        ENV_SKIP=false
     else
         info "Se mantendrá el .env existente."
-        SKIP_ENV=true
+        mark_done "env_configured"
+        ENV_SKIP=true
     fi
 else
-    if [[ -f .env.example ]]; then
-        cp .env.example .env
-    else
-        touch .env
-    fi
-    SKIP_ENV=false
+    [[ -f .env.example ]] && cp .env.example .env || touch .env
+    ENV_SKIP=false
 fi
 
-if [[ "${SKIP_ENV:-false}" == "false" ]]; then
+if [[ "$ENV_SKIP" == "false" ]]; then
     echo
     echo -e "  ${DIM}Completa cada campo. Los valores entre [corchetes] son el valor por defecto.${NC}"
     echo
 
-    # ── Aplicación
     echo -e "  ${BOLD}--- Aplicación ---${NC}"
     APP_NAME=$(ask "Nombre de la app (APP_NAME)" "Factunet Auxiliar")
     APP_URL=$(ask "URL pública del auxiliar (APP_URL, ej: http://192.168.1.10)" "http://localhost")
@@ -205,7 +207,6 @@ if [[ "${SKIP_ENV:-false}" == "false" ]]; then
     APP_KEY="base64:$(openssl rand -base64 32)"
     ok "APP_KEY generada."
 
-    # ── Escribir .env
     cat > .env <<EOF
 APP_NAME="${APP_NAME}"
 APP_ENV=production
@@ -251,32 +252,59 @@ MAYOR_SYNC_URL=${MAYOR_SYNC_URL}
 MAYOR_SYNC_TOKEN=${MAYOR_SYNC_TOKEN}
 EOF
 
+    mark_done "env_configured"
     ok ".env configurado correctamente."
 fi
 
 echo
 
-# ── Paso 3: Build y arranque de contenedores ──────────────────────────────────
+# ── PASO 3: Build y arranque de contenedores ──────────────────────────────────
 step "PASO 3: Construyendo y levantando contenedores Docker"
 divider
 echo
 
-COMPOSE_FILE="docker-compose.auxiliar.yml"
-if [[ ! -f "$COMPOSE_FILE" ]]; then
-    fatal "No se encontró $COMPOSE_FILE en $(pwd)"
+# Detectar si los contenedores ya están corriendo
+CONTAINERS_RUNNING=false
+if $COMPOSE_CMD -f "$COMPOSE_FILE" ps --status running 2>/dev/null | grep -q "app"; then
+    CONTAINERS_RUNNING=true
 fi
 
-info "Construyendo imagen de la aplicación (puede tardar varios minutos)..."
-echo
-$COMPOSE_CMD -f "$COMPOSE_FILE" build --no-cache 2>&1 | \
-    grep -E "^(Step|STEP|#|---|\s*--->|Successfully|ERROR|error)" || true
+if is_done "docker_built" && $CONTAINERS_RUNNING; then
+    ok "Contenedores ya están en ejecución (paso completado previamente)."
+    info "Para reconstruir usa: bash install-auxiliar.sh --reset"
+else
+    if is_done "docker_built" && ! $CONTAINERS_RUNNING; then
+        info "La imagen ya fue construida pero los contenedores no están corriendo. Levantando..."
+    else
+        if $CONTAINERS_RUNNING; then
+            warn "Los contenedores están corriendo. ¿Reconstruir la imagen?"
+            if ! ask_yes "¿Reconstruir imagen Docker? (puede tardar varios minutos)"; then
+                info "Se omite la reconstrucción."
+                mark_done "docker_built"
+                goto_step4=true
+            fi
+        fi
+
+        if [[ "${goto_step4:-false}" == "false" ]]; then
+            info "Construyendo imagen (puede tardar varios minutos)..."
+            echo
+            $COMPOSE_CMD -f "$COMPOSE_FILE" build --no-cache 2>&1 | \
+                grep -E "^(Step|STEP|#|---|\s*--->|Successfully|ERROR|error)" || true
+            echo
+            mark_done "docker_built"
+            ok "Imagen construida correctamente."
+        fi
+    fi
+
+    info "Iniciando servicios..."
+    $COMPOSE_CMD -f "$COMPOSE_FILE" up -d
+    mark_done "docker_running"
+    ok "Servicios iniciados."
+fi
+
 echo
 
-info "Iniciando servicios..."
-$COMPOSE_CMD -f "$COMPOSE_FILE" up -d
-echo
-
-# ── Paso 4: Esperar a que la BD esté lista ────────────────────────────────────
+# ── PASO 4: Verificar salud de los contenedores ───────────────────────────────
 step "PASO 4: Verificando salud de los contenedores"
 
 MAX_WAIT=90
@@ -311,7 +339,6 @@ print(db.get('Health','unknown') if db else 'unknown')
     WAITED=$((WAITED + 3))
 done
 
-# Verificar que el contenedor app esté corriendo
 APP_STATUS=$($COMPOSE_CMD -f "$COMPOSE_FILE" ps --format json 2>/dev/null | \
     python3 -c "
 import sys, json
@@ -330,13 +357,12 @@ if [[ "$APP_STATUS" != "running" ]]; then
     $COMPOSE_CMD -f "$COMPOSE_FILE" logs --tail=30 app
     echo
     if ! ask_yes "¿Deseas continuar de todas formas?"; then
-        fatal "Instalación interrumpida. Revisa los logs arriba."
+        fatal "Instalación pausada. Corrige el problema y vuelve a ejecutar el script."
     fi
 else
     ok "Contenedor app: corriendo"
 fi
 
-# Servicios adicionales
 for svc in nginx scheduler worker; do
     SVC_STATE=$($COMPOSE_CMD -f "$COMPOSE_FILE" ps --format json 2>/dev/null | \
         python3 -c "
@@ -353,7 +379,7 @@ print(s.get('State','no encontrado') if s else 'no encontrado')
 done
 echo
 
-# ── Paso 5: Verificar bootstrap ───────────────────────────────────────────────
+# ── PASO 5: Verificar bootstrap ───────────────────────────────────────────────
 step "PASO 5: Verificando bootstrap de la instancia"
 
 info "Revisando logs del bootstrap (entrypoint)..."
@@ -368,7 +394,9 @@ elif echo "$LOGS" | grep -q "Faltan variables de entorno\|INSTANCE_UUID\|MAYOR_S
     echo -e "  ${DIM}Fragmento del log:${NC}"
     echo "$LOGS" | grep -A5 "Faltan variables\|INSTANCE" | head -10 | sed 's/^/    /'
     echo
-    warn "Corrige el .env y reinicia con: $COMPOSE_CMD -f $COMPOSE_FILE restart app"
+    warn "Corrige el .env, luego vuelve a ejecutar: bash install-auxiliar.sh"
+    warn "El script retomará desde los contenedores ya construidos."
+    exit 1
 elif echo "$LOGS" | grep -qi "error\|failed\|exception"; then
     warn "Se detectaron posibles errores en el bootstrap."
     echo -e "  ${DIM}Últimas líneas del log:${NC}"
@@ -379,10 +407,9 @@ else
 fi
 echo
 
-# ── Paso 6: Pruebas de conectividad ──────────────────────────────────────────
+# ── PASO 6: Pruebas de conectividad ──────────────────────────────────────────
 step "PASO 6: Pruebas de conectividad"
 
-# Leer APP_PORT del .env
 ENV_PORT=$(grep "^APP_PORT=" .env | cut -d= -f2 | tr -d '"' || echo "80")
 ENV_PORT="${ENV_PORT:-80}"
 TEST_URL="http://localhost:${ENV_PORT}"
@@ -394,10 +421,9 @@ if [[ "$HTTP_CODE" =~ ^(200|301|302|303|401|403)$ ]]; then
     ok "Servidor HTTP responde: HTTP $HTTP_CODE"
 else
     warn "No se pudo conectar a $TEST_URL (código: $HTTP_CODE)."
-    warn "El contenedor Nginx puede necesitar más tiempo o el puerto está en uso."
+    warn "Nginx puede necesitar más tiempo o el puerto está en uso."
 fi
 
-# Probar artisan dentro del contenedor
 info "Verificando artisan dentro del contenedor app..."
 ARTISAN_OUT=$($COMPOSE_CMD -f "$COMPOSE_FILE" exec -T app php artisan --version 2>&1 || echo "ERROR")
 if echo "$ARTISAN_OUT" | grep -qi "laravel"; then
@@ -406,7 +432,6 @@ else
     warn "No se pudo ejecutar artisan: $ARTISAN_OUT"
 fi
 
-# Probar base de datos
 info "Verificando conexión con la base de datos..."
 DB_TEST=$($COMPOSE_CMD -f "$COMPOSE_FILE" exec -T app \
     php artisan tinker --execute="DB::connection()->getPdo(); echo 'OK';" 2>&1 || echo "ERROR")
@@ -417,7 +442,6 @@ else
     echo "$DB_TEST" | tail -5 | sed 's/^/    /'
 fi
 
-# Probar conexión con el Mayor
 MAYOR_URL=$(grep "^MAYOR_SYNC_URL=" .env | cut -d= -f2 | tr -d '"' || echo "")
 if [[ -n "$MAYOR_URL" ]]; then
     info "Verificando conectividad con el Mayor ($MAYOR_URL)..."
@@ -431,7 +455,7 @@ if [[ -n "$MAYOR_URL" ]]; then
 fi
 echo
 
-# ── Paso 7: Sincronización manual (opcional) ─────────────────────────────────
+# ── PASO 7: Sincronización manual (opcional) ─────────────────────────────────
 step "PASO 7: Sincronización inicial (opcional)"
 
 if ask_yes "¿Deseas ejecutar sync:pull ahora para descargar datos del Mayor?"; then
@@ -445,12 +469,15 @@ else
 fi
 echo
 
+# Instalación completada — limpiar archivo de progreso
+rm -f "$STATE_FILE"
+
 # ── Resumen final ─────────────────────────────────────────────────────────────
 divider
 echo
-echo -e "  ${BOLD}${GREEN}Instalación completada${NC}"
+echo -e "  ${BOLD}${GREEN}Instalación completada exitosamente${NC}"
 echo
-echo -e "  ${BOLD}Directorio:${NC}  $INSTALL_DIR"
+echo -e "  ${BOLD}Directorio:${NC}  $SCRIPT_DIR"
 echo -e "  ${BOLD}URL local:${NC}   http://localhost:${ENV_PORT}"
 echo -e "  ${BOLD}Compose:${NC}     $COMPOSE_CMD -f $COMPOSE_FILE"
 echo
@@ -460,6 +487,5 @@ echo -e "  ${DIM}Detener:         $COMPOSE_CMD -f $COMPOSE_FILE down${NC}"
 echo -e "  ${DIM}Reiniciar:       $COMPOSE_CMD -f $COMPOSE_FILE restart${NC}"
 echo -e "  ${DIM}Shell en app:    $COMPOSE_CMD -f $COMPOSE_FILE exec app bash${NC}"
 echo -e "  ${DIM}Sync manual:     $COMPOSE_CMD -f $COMPOSE_FILE exec app php artisan sync:pull${NC}"
-echo -e "  ${DIM}Ver instancia:   $COMPOSE_CMD -f $COMPOSE_FILE exec app php artisan tinker${NC}"
 echo
 divider
