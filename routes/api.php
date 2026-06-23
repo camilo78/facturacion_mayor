@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\SyncInfoController;
 use App\Http\Controllers\Api\SyncPullController;
 use App\Http\Controllers\Api\SyncPushController;
+use App\Http\Controllers\Api\SyncUsuariosController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -14,7 +15,8 @@ use Illuminate\Support\Facades\Route;
 */
 
 Route::middleware('auth.sync')->group(function () {
-    Route::get('/sync/info',  SyncInfoController::class)->name('sync.info');
-    Route::post('/sync/push', SyncPushController::class)->name('sync.push');
-    Route::post('/sync/pull', SyncPullController::class)->name('sync.pull');
+    Route::get('/sync/info',     SyncInfoController::class)->name('sync.info');
+    Route::post('/sync/push',    SyncPushController::class)->name('sync.push');
+    Route::post('/sync/pull',    SyncPullController::class)->name('sync.pull');
+    Route::get('/sync/usuarios', SyncUsuariosController::class)->name('sync.usuarios');
 });
