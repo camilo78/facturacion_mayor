@@ -321,7 +321,7 @@ build_and_start() {
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
-section "8/8  Tests de aceptacion T1-T11"
+section "8/8  Tests de aceptacion T1-T15"
 # ─────────────────────────────────────────────────────────────────────────────
 
 PASS=0; FAIL=0
@@ -416,29 +416,66 @@ run_tests() {
     then t_pass T9 "Regla nginx para Livewire presente"
     else t_fail T9 "Regla nginx Livewire" "No se encontro 'livewire-' en default.conf del contenedor nginx"; fi
 
-    # ── T10: catálogos sincronizados ──────────────────────────────────────────
+    # Helper: corre código PHP en contexto del tenant y extrae el primer número del output
+    # Uso: tenant_count "Modelo::count()" → número
+    tenant_php() {
+        local code="$1"
+        docker exec auxiliar_app php artisan tinker \
+            --execute="tenancy()->initialize('${TENANT_ID}'); ${code}" \
+            2>/dev/null | grep -E '^[0-9]+$' | tail -1 || echo "0"
+    }
+
+    # ── T10: catálogos en BD del TENANT > 0 ──────────────────────────────────
+    # [15-fix] tenancy()->initialize() garantiza consulta al tenant, no al landlord
     local prod_count client_count
-    prod_count=$(docker exec auxiliar_app php artisan tinker \
-        --execute="tenancy()->initialize('${TENANT_ID}'); echo \App\Models\Producto::count();" \
-        2>/dev/null | grep -E '^[0-9]+$' | tail -1 || echo "0")
-    client_count=$(docker exec auxiliar_app php artisan tinker \
-        --execute="tenancy()->initialize('${TENANT_ID}'); echo \App\Models\Cliente::count();" \
-        2>/dev/null | grep -E '^[0-9]+$' | tail -1 || echo "0")
+    prod_count=$(tenant_php 'echo \App\Models\Producto::count();')
+    client_count=$(tenant_php 'echo \App\Models\Cliente::count();')
     prod_count="${prod_count:-0}"; client_count="${client_count:-0}"
     if [[ "$prod_count" -gt 0 || "$client_count" -gt 0 ]]
-    then t_pass T10 "Catalogos: productos=${prod_count}, clientes=${client_count}"
-    else t_fail T10 "Sync catalogos" "0 registros — verifica MAYOR_SYNC_TOKEN y que el tenant tenga datos"; fi
+    then t_pass T10 "Catalogos en tenant: productos=${prod_count}, clientes=${client_count}"
+    else t_fail T10 "Sync catalogos (BD del tenant)" \
+            "0 registros — puede ser pull incremental con BD vacía [bug 12/14] o Mayor sin datos"; fi
 
-    # ── T11: usuarios sincronizados (CRITICO — login requiere al menos 1 usuario)
+    # ── T11: usuarios en BD del TENANT > 0 (CRITICO — login imposible sin usuarios)
     local user_count
-    user_count=$(docker exec auxiliar_app php artisan tinker \
-        --execute="tenancy()->initialize('${TENANT_ID}'); echo \App\Models\User::count();" \
-        2>/dev/null | grep -E '^[0-9]+$' | tail -1 || echo "0")
+    user_count=$(tenant_php 'echo \App\Models\User::count();')
     user_count="${user_count:-0}"
     if [[ "$user_count" -gt 0 ]]
-    then t_pass T11 "Usuarios sincronizados: ${user_count}"
-    else t_fail T11 "Sync usuarios (CRITICO — login imposible sin usuarios)" \
-            "Verifica MAYOR_SYNC_TOKEN y que el endpoint /api/sync/usuarios este activo en el Mayor"; fi
+    then t_pass T11 "Usuarios sincronizados en tenant: ${user_count}"
+    else t_fail T11 "Sync usuarios CRITICO — login imposible" \
+            "Verifica MAYOR_SYNC_TOKEN y que /api/sync/usuarios este activo en el Mayor"; fi
+
+    # ── T13: permisos sembrados en la BD del tenant ───────────────────────────
+    # RolesPermisosSeeder debe haber corrido dentro del tenant durante el bootstrap
+    local perm_count
+    perm_count=$(tenant_php 'echo \Spatie\Permission\Models\Permission::count();')
+    perm_count="${perm_count:-0}"
+    if [[ "$perm_count" -ge 20 ]]
+    then t_pass T13 "Permisos en tenant: ${perm_count} (esperados >= 20)"
+    else t_fail T13 "Permisos del tenant CRITICO — menu vacio sin permisos" \
+            "${perm_count} permisos — RolesPermisosSeeder no corrio en el tenant. Verifica InstanceBootstrap.php"; fi
+
+    # ── T14: rol Admin tiene permisos asignados ───────────────────────────────
+    local admin_perm_count
+    admin_perm_count=$(tenant_php '$r=\Spatie\Permission\Models\Role::where("name","Admin")->first(); echo $r ? $r->permissions()->count() : 0;')
+    admin_perm_count="${admin_perm_count:-0}"
+    if [[ "$admin_perm_count" -ge 20 ]]
+    then t_pass T14 "Rol Admin tiene ${admin_perm_count} permisos"
+    else t_fail T14 "Rol Admin sin permisos CRITICO — @can() falla en Blade" \
+            "${admin_perm_count} permisos en Admin — syncPermissions no se ejecuto. Verifica RolesPermisosSeeder"; fi
+
+    # ── T15: watermark de sync establece que pull completo corrio ─────────────
+    # Si el watermark está en cache, significa que sync:pull completó exitosamente.
+    # Si está vacío, el pull pudo haber corrido incremental y traído 0 registros [bug 14].
+    local watermark
+    watermark=$(docker exec auxiliar_app php artisan tinker \
+        --execute="echo \Illuminate\Support\Facades\Cache::get('sync:last_pull_at','__VACIO__');" \
+        2>/dev/null | grep -v '^$' | grep -v '^=>' | tail -1 || echo "__VACIO__")
+    watermark="${watermark:-__VACIO__}"
+    if [[ "$watermark" != "__VACIO__" && "$watermark" != "null" && -n "$watermark" ]]
+    then t_pass T15 "Watermark de sync presente: ${watermark}"
+    else t_fail T15 "Watermark de sync ausente" \
+            "sync:pull nunca completo — el bootstrap puede haber hecho pull incremental vacio [bug 12/14]"; fi
 
     set -e
 
@@ -447,7 +484,7 @@ run_tests() {
     printf '\n' >&2
     if [[ $FAIL -eq 0 ]]; then
         printf '%b══ RESULTADO: %d/%d PASS — Auxiliar listo en http://localhost:%s/empresa/%s/login%b\n\n' \
-            "$GREEN" "$PASS" "$total" "${port:-80}" "${TENANT_ID}" "$NC" >&2
+            "$GREEN" "$PASS" "$total" "${port:-80}" "${TENANT_ID:-?}" "$NC" >&2
         return 0
     else
         local ids

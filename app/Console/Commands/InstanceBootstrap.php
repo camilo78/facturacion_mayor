@@ -4,15 +4,18 @@ namespace App\Console\Commands;
 
 use App\Models\Instance;
 use App\Models\Tenant;
+use Database\Seeders\RolesPermisosSeeder;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Spatie\Permission\PermissionRegistrar;
 
 class InstanceBootstrap extends Command
 {
     protected $signature   = 'instance:bootstrap
                                {--fresh : Re-descarga todos los datos del Mayor aunque ya existan}';
-    protected $description = 'Inicializa el Auxiliar: crea el tenant local, migra y descarga datos del Mayor';
+    protected $description = 'Inicializa el Auxiliar: crea el tenant local, migra, siembra permisos y descarga datos del Mayor';
 
     public function handle(): int
     {
@@ -33,15 +36,22 @@ class InstanceBootstrap extends Command
             return 1;
         }
 
-        // [6] Si la instancia ya está registrada y no se pidió fresh → nada que hacer
+        // ── [12] FIX: "ya inicializada" se decide por ESTADO REAL DE LA BD, ──────
+        // no por el UUID del .env (que sobrevive al borrado de volúmenes).
+        // Si el registro de instancia existe PERO la BD del tenant está vacía,
+        // se trata como instalación nueva y se fuerza pull completo.
         $instanciaLocal = Instance::find($uuid);
         if ($instanciaLocal && ! $this->option('fresh')) {
-            $this->info("Instancia ya inicializada: {$instanciaLocal->label}");
-            $this->line('  Usa --fresh para re-sincronizar desde cero.');
-            return 0;
+            $tenantIdLocal = $instanciaLocal->tenant_id;
+            if ($tenantIdLocal && $this->tenantTieneData($tenantIdLocal)) {
+                $this->info("Instancia ya inicializada: {$instanciaLocal->label}");
+                $this->line('  Usa --fresh para re-sincronizar desde cero.');
+                return 0;
+            }
+            $this->warn('Instancia registrada pero BD del tenant vacía — forzando provisión completa.');
         }
 
-        // ── 1. Obtener info del Mayor ──────────────────────────────────────────
+        // ── 1. Obtener info del Mayor ──────────────────────────────────────────────
         $this->info('Conectando con el Mayor...');
         try {
             $response = Http::withToken($token)
@@ -64,11 +74,8 @@ class InstanceBootstrap extends Command
 
         $this->info("Empresa: {$tenInfo['nombre']} (ID: {$tenantId})");
 
-        // ── 2. Crear/actualizar tenant local ─────────────────────────────────
+        // ── 2. Crear/actualizar tenant local (idempotente) ────────────────────────
         $this->line('Provisionando tenant local...');
-
-        // [6] firstOrCreate es idempotente: si el tenant ya existe (reinicio tras fallo
-        // parcial), no dispara TenantCreated ni intenta crear la DB dos veces.
         [$tenant, $esNuevo] = $this->upsertTenant($tenantId, $tenInfo);
 
         if ($esNuevo) {
@@ -81,14 +88,14 @@ class InstanceBootstrap extends Command
             $this->info('  Tenant ya existía — datos actualizados.');
         }
 
-        // Garantizar que las migraciones del tenant estén al día en cualquier caso
+        // Garantizar que las migraciones del tenant estén al día
         $this->line('  Aplicando migraciones del tenant...');
         Artisan::call('tenants:migrate', [
             '--tenants' => [$tenantId],
             '--force'   => true,
         ]);
 
-        // ── 3. Registrar instancia local ──────────────────────────────────────
+        // ── 3. Registrar instancia local ──────────────────────────────────────────
         $this->line('Registrando instancia local...');
         Instance::updateOrCreate(
             ['id' => $uuid],
@@ -102,9 +109,23 @@ class InstanceBootstrap extends Command
         );
         $this->info("  Instancia registrada: {$instInfo['label']}");
 
-        // ── 4. Pull completo de datos maestros + usuarios ─────────────────────
+        // ── 4. [13] FIX: Sembrar permisos y roles DENTRO del tenant ──────────────
+        // RolesPermisosSeeder crea los 4 roles con sus permisos asignados.
+        // Debe correr ANTES de sync:pull para que cuando pullUsuarios() llame
+        // syncRoles(), los roles ya existan con sus permisos completos.
+        // El seeder es idempotente (firstOrCreate + syncPermissions).
+        $this->line('Sembrando permisos y roles en el tenant...');
+        tenancy()->initialize($tenantId);
+        (new RolesPermisosSeeder())->run();
+        $this->info('  Permisos y roles sembrados.');
+
+        // ── 5. Pull completo de catálogos + usuarios ──────────────────────────────
         $this->line('Descargando datos del Mayor (pull completo)...');
         $exitCode = Artisan::call('sync:pull', ['--force' => true], $this->output);
+
+        // ── 6. [13] Limpiar caché de Spatie tras asignar roles a usuarios ─────────
+        app()[PermissionRegistrar::class]->forgetCachedPermissions();
+        tenancy()->end();
 
         if ($exitCode !== 0) {
             $this->warn('El pull tuvo errores. Reintenta con: php artisan sync:pull --force');
@@ -116,7 +137,27 @@ class InstanceBootstrap extends Command
     }
 
     /**
+     * [12] Verifica si la BD del tenant tiene datos reales (catálogos o usuarios).
+     * Usa try/catch porque el tenant puede no existir aún en el primer arranque.
+     */
+    private function tenantTieneData(string $tenantId): bool
+    {
+        try {
+            tenancy()->initialize($tenantId);
+            $count = DB::table('productos')->count()
+                   + DB::table('clientes')->count()
+                   + DB::table('users')->count();
+            tenancy()->end();
+            return $count > 0;
+        } catch (\Throwable) {
+            try { tenancy()->end(); } catch (\Throwable) {}
+            return false;
+        }
+    }
+
+    /**
      * Crear o encontrar el tenant de forma idempotente.
+     * Si el tenant ya existe, no se dispara TenantCreated (no intenta crear la DB dos veces).
      * Devuelve [$tenant, $esNuevo].
      */
     private function upsertTenant(string $tenantId, array $tenInfo): array
@@ -126,8 +167,6 @@ class InstanceBootstrap extends Command
             return [$existing, false];
         }
 
-        // Tenant::create() dispara TenantCreated → crea la DB + migra.
-        // Solo llega aquí si el tenant NO existe todavía.
         $tenant = Tenant::create([
             'id'               => $tenantId,
             'nombre'           => $tenInfo['nombre'],
