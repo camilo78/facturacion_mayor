@@ -25,7 +25,7 @@ fi
 # Esperar a que MariaDB responda
 echo "Esperando base de datos..."
 until mariadb -h"${DB_HOST:-db}" \
-              -u"${DB_USERNAME:-root}" \
+              -u"${DB_USERNAME:-auxiliar}" \
               -p"${DB_PASSWORD:-secret}" \
               -e "SELECT 1" >/dev/null 2>&1; do
     sleep 2
